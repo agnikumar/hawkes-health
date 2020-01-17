@@ -20,8 +20,8 @@ para.mu = np.matlib.rand(D,1) / D
 #para.A = np.zeros((D, D, L))
 para.A = np.zeros((L, D, D))
 
-print(para.A)
-print(para.A.shape)
+#print(para.A)
+#print(para.A.shape)
 
 for l in range(L):
     # para.A[:,:,l] = (0.5**l) * (0.5 + np.matlib.rand(D, D))
@@ -41,16 +41,25 @@ options.dt = 0.1
 options.M = 250
 options.GenerationNum = 10
 
-Seqs = Simulation_Branch_HP(para, options)
+Seqs = Simulation_Branch_HP(para, options) 
+#print(Seqs)
 
 # Setting model
 model = Model()
 model.M = 1000
 model.D = 2
 model.dt = 0.02
-model.g = np.matlib.rand(model.M, model.D)
-model.g = model.g / np.matlib.repmat(np.sum(model.g),[model.M, 1])
-model.A = np.matlib.rand(D, model.D, D) / (model.D * D**2)
+model.g = np.matlib.rand(model.M, model.D) # 1000x2
+
+#model2.g = model2.g./repmat(sum(model2.g),[model2.M,1]) <--- MATLAB
+#model.g = model.g / np.matlib.repmat(np.sum(model.g),[model.M, 1])
+#print(np.tile(np.sum(model.g), (model.M, 1)).shape)
+#model.g = model.g / np.tile(np.sum(model.g), (1, model.M)) # should be 1000x2, but is 1x1000
+model.g = model.g / np.tile(np.sum(model.g), (model.M, 1))
+
+# model2.A = rand(D, model2.D, D)./(model2.D*D^2); <--- MATLAB
+#model.A = np.matlib.rand(D, model.D, D) / (model.D * D**2) # should be 3x2x3
+model.A = np.random.rand(D, model.D, D) / (model.D * D**2)
 model.mu = np.matlib.rand(D, 1) / D
 
 # Setting alg
@@ -60,10 +69,15 @@ alg.inner = 3
 alg.inner_g = 100
 alg.outer = 8
 alg.thres = 1e-5
-alg.Tmax = []
+#alg.Tmax = []
+alg.Tmax = np.empty((0,0))
 
 nSeg = 5
 nNum = options.N/nSeg
-output = Learning_MLE_ODE(Seqs[:i*nNum], model, alg)
-print(output)
+
+i = nSeg
+output = Learning_MLE_ODE(Seqs[:int(i*nNum)], model, alg)
+#print(output)
+print(len(output))
+
 

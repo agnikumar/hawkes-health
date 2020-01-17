@@ -101,26 +101,41 @@ def Kernel_Approx(dt, para):
     Compute the value of kernel function at different time
     dt: array/list (?)
     '''
-    g = np.zeros(len(dt.flatten()), para.g.shape[1])
+    g = np.zeros((len(dt.flatten()), para.g.shape[1]))
 
     M = para.g.shape[0]
     Nums = np.ceil(dt/para.dt)
+
+    #print("Nums------", Nums.shape)
+    #print("Nums val", Nums)
+
     for i in range(len(dt.flatten())):
-        if Nums[i] <= M:
-            g[i,:] = para.g[Nums[i],:]
+        #print(Nums[i])
+        #if Nums[i] <= M:
+        if Nums.flatten()[i] < M:
+            #g[i,:] = para.g[Nums[i].astype(int),:] #g[i,:] is 1x2 initially
+            g[i,:] = para.g[int(Nums.flatten()[i]),:]
         else:
             g[i,:] = 0
     return g
 
 def Kernel_Integration_Approx(dt, para):
-    G = np.zeros(len(dt.flatten()), para.g.shape[1])
+    #G = np.zeros(len(dt.flatten()), para.g.shape[1])
+    G = np.zeros((len(dt.flatten()), para.g.shape[1]))
 
     M = para.g.shape[0]
+    Nums = np.ceil(dt/para.dt)
+
+    #print(Nums)
+    #print("Shape of Nums:", Nums.shape) # added
+
     for i in range(len(dt.flatten())):
-        if Nums[i] <= M:
-            G[i,:] = np.sum(para.g[:Nums[i],:]) * para.dt
+        #if Nums[i] <= M:
+        if Nums.flatten()[i] < M:
+            G[i,:] = np.sum(para.g[:int(Nums.flatten()[i]),:]) * para.dt
         else:
             G[i,:] = np.sum(para.g) * para.dt
+    return G
 
 # --------------------------------------------------------------------
 # MMHP_testing.py / Simulation_Branch_HP.py
@@ -129,8 +144,16 @@ def Simulation_Thinning_Poisson(mu, t_start, t_end):
     '''
     Thinning method to simulate homogeneous Poisson processes
     '''
+
+    #print("mu:", mu)
+    #print(mu.shape)
+    #print("t_start:", t_start)
+    #print("t_end:", t_end)
+
     t = t_start
-    History = []
+    #History = []
+    History = np.empty((2,0))
+    #print(History.shape)
 
     mt = np.sum(mu)
 
@@ -146,10 +169,24 @@ def Simulation_Thinning_Poisson(mu, t_start, t_end):
                 break
 
         index = d
-        History = np.concatenate((History, np.concatenate(t, index[0])), 1) # check correctness
+        # History=[History,[t;index(1)]]; <--- MATLAB
+        #History = np.concatenate((History, np.concatenate(t, index[0])), 1) # check correctness
+        #History = np.concatenate((History, np.concatenate((t, index))), 1) # check correctness
+        t_index = np.vstack((t, index))
+
+        #print(History.shape)
+        #print("History:", History)
+        #print("t_index:", t_index)
+        #print(t_index.shape)
+
+        History = np.hstack((History, t_index))
 
     index = np.nonzero(History[0,:].copy() < t_end) 
-    History = History[:, index] 
+    #print(index)
+    #print(index[0].shape)
+    #History = History[:, index] 
+    History = History[:, index[0]] 
+    #print("History shape:", History.shape)
     return History
 
 def Kernel(dt, para): 
@@ -157,23 +194,54 @@ def Kernel(dt, para):
     Compute the value of kernel function at different time
     Used in ImpactFunction
     '''
-    distance = np.matlib.repmat(dt.flatten(), 1, len(para.landmark.flatten())) - \
-            np.matlib.repmat(np.atleast_2d(para.landmark.flatten()).T, len(dt), 1)
+    #distance = np.matlib.repmat(dt.flatten(), 1, len(para.landmark.flatten())) - \
+    #        np.matlib.repmat(np.atleast_2d(para.landmark.flatten()).T, len(dt), 1)
+    #distance = np.matlib.repmat(dt, 1, len(para.landmark.flatten())) - \
+    #        np.matlib.repmat(np.atleast_2d(para.landmark.flatten()).T, 1, 1) # should be 1x4, but is 4x4
+    distance = np.tile(dt, (len(para.landmark.flatten()), 1)) - \
+            np.tile(np.atleast_2d(para.landmark.flatten()).T, (1, 1))
+
+    #print("distance", distance.shape) # added
 
     if para.kernel == 'exp':
         g = para.w * np.exp(-para.w * distance)
         g[g > 1] = 0 
     elif para.kernel == 'gauss':
-        g = np.exp(-(distance**2)/(2*para.w**2))/(np.sqrt(2*pi)*para.w) 
+        #g = np.exp(-(distance**2)/(2*para.w**2))/(np.sqrt(2*np.pi)*para.w) 
+        g_temp = np.exp(-(distance**2)/(2*para.w**2))/(np.sqrt(2*np.pi)*para.w)
+        g = g_temp.reshape((1,4))
+        #print("g", g) # added
+        #print(g.shape) # added
     else:
         print('Error: please assign a kernel function!')
         g = None # added 
     return g
 
 def ImpactFunction(u, dt, para):
-    A = np.reshape(para.A[u,:,:], size(para.A, 2), size(para.A, 3))
+    #print(u)
+    #print(u.shape)
+    #A = reshape(para.A(u,:,:), [size(para.A, 2), size(para.A, 3)]); <--- MATLAB
+    #A = np.reshape(para.A[u,:,:], size(para.A, 2), size(para.A, 3))
+    #print(para.A.shape) # should be 3x4x3
+
+    #print(para.A[int(u),:,:])
+    #print(para.A[int(u),:,:].shape)
+
+    A = np.reshape(para.A[int(u),:,:], (para.A.shape[1], para.A.shape[2]), order='F').copy() # should be 4x3
+
+    #print(A.shape) # should be 4x3
+
     basis = Kernel(dt, para)
-    phi = np.atleast_2d(A).T * basis.flatten()
+
+    #print("Basis", basis.shape) # should be 1x4
+
+    #phi = np.atleast_2d(A).T * basis.flatten()
+    #print(A.conj().T.shape)
+    #print("basis flatten", basis.flatten().shape)
+    #print(basis.flatten())
+
+    phi = A.conj().T @ basis.flatten().reshape((4,1))
+    #print("phi shape", phi.shape) # is 3x4
     return phi
 
 
